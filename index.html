@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>SPERMA SHUT - Online Multiplayer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+    <!-- Подключаем Socket.io клиент -->
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { width: 100%; height: 100%; overflow: hidden; background: #0b0b1a; touch-action: none; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        #main-menu, #map-select-menu, #shop-menu {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 10;
+            display: flex; align-items: center; justify-content: center;
+            background: radial-gradient(circle, rgba(20,10,40,0.8) 0%, rgba(5,2,10,0.95) 100%);
+        }
+        #map-select-menu, #shop-menu { display: none; z-index: 12; }
+
+        .menu-content { 
+            display: flex; flex-direction: column; gap: 14px; background: rgba(15, 15, 25, 0.92); 
+            padding: 25px; border-radius: 20px; box-shadow: 0 0 40px rgba(255, 42, 130, 0.4); 
+            text-align: center; width: 90%; max-width: 360px; color: white; border: 2px solid rgba(255, 105, 180, 0.3);
+        }
+        .logo-container { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 5px; }
+        .game-logo { font-size: 2.2rem; filter: drop-shadow(0 0 10px #ff2a82); }
+        .game-title { color: #fff; font-size: 2rem; font-weight: 900; text-shadow: 0 0 10px #ff2a82; letter-spacing: 2px; }
+
+        input[type="text"], select { 
+            padding: 12px; font-size: 1.1rem; border-radius: 8px; border: 2px solid #444; 
+            text-align: center; width: 100%; background: #1a1a2e; color: white; outline: none;
+        }
+        .menu-btn { 
+            padding: 14px; font-size: 1.1rem; font-weight: bold; color: white; 
+            background: linear-gradient(135deg, #2c2c44, #1a1a2e); border: none; border-radius: 10px; 
+            cursor: pointer; border: 2px solid #555;
+        }
+        .menu-btn:active { transform: scale(0.95); }
+        #play-btn, #create-map-btn, #open-box-btn { 
+            background: linear-gradient(135deg, #ff2a2a, #ff66aa); border-color: white; font-size: 1.3rem; 
+        }
+
+        #settings-menu, #wardrobe-menu {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 15; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.85);
+        }
+        .sub-menu-content { background: #151525; padding: 25px; border-radius: 20px; border: 2px solid #ff2a82; color: white; display: flex; flex-direction: column; gap: 15px; width: 90%; max-width: 320px; text-align: center; }
+
+        #hud-container {
+            position: absolute; top: 20px; left: 20px; z-index: 10; display: none;
+            flex-direction: column; gap: 8px; pointer-events: none;
+        }
+        #sperma-indicator {
+            background: rgba(0, 0, 0, 0.75); padding: 8px 12px; border-radius: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.3); color: white; font-weight: bold;
+            display: flex; align-items: center; gap: 10px; pointer-events: none;
+        }
+        .egg-shell { width: 40px; height: 30px; border: 3px solid white; border-radius: 50% 50% 40% 40%; position: relative; overflow: hidden; background: #333; box-shadow: inset 0 0 5px rgba(0,0,0,0.8); }
+        #egg-fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(0deg, #ffffff, #ffbbee); transition: height 0.05s linear; }
+        
+        #dick-control-panel { display: flex; gap: 5px; pointer-events: auto; }
+        .dick-btn { padding: 6px 12px; background: rgba(255,255,255,0.8); border: 2px solid #ff66aa; border-radius: 6px; font-weight: bold; color: #333; cursor: pointer; font-size: 0.9rem; }
+        .dick-btn:active { background: #fff; transform: scale(0.95); }
+
+        #coin-counter {
+            position: absolute; top: 20px; right: 140px; z-index: 10; display: none;
+            background: rgba(0,0,0,0.7); padding: 8px 15px; border-radius: 10px; color: gold; font-weight: bold; font-size: 1.2rem; border: 2px solid gold;
+        }
+
+        #exit-btn {
+            position: absolute; top: 20px; right: 20px; z-index: 11; display: none; padding: 10px 15px;
+            background: #ff2a2a; color: white; border: 2px solid white; border-radius: 8px; font-weight: bold; cursor: pointer; pointer-events: auto;
+        }
+
+        #game-ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: none; pointer-events: none; }
+        #joystick-zone { position: absolute; top: 0; left: 0; width: 50%; height: 100%; pointer-events: auto; }
+        #camera-zone { position: absolute; top: 0; right: 0; width: 50%; height: 100%; pointer-events: auto; }
+        
+        #shoot-btn {
+            position: absolute; bottom: 40px; right: 40px; width: 90px; height: 90px; pointer-events: auto;
+            background: rgba(255, 255, 255, 0.85); border: 3px solid #ff66aa; border-radius: 50%; font-weight: bold; color: #ff2a82; display: flex; justify-content: center; align-items: center; user-select: none; z-index: 10; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        #shoot-btn:active { background: #fff; transform: scale(0.9); }
+        
+        #crosshair { position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; background: white; border-radius: 50%; transform: translate(-50%, -50%); z-index: 5; display: none; pointer-events: none; }
+        #anim-btn { position: absolute; top: 80px; right: 20px; padding: 10px 20px; pointer-events: auto; background: rgba(0,0,0,0.5); color: white; border: 2px solid white; border-radius: 8px; font-weight: bold; z-index: 11; user-select: none; }
+        #anim-menu { position: absolute; top: 130px; right: 20px; display: none; flex-direction: column; gap: 5px; pointer-events: auto; z-index: 11; }
+        .anim-option { padding: 10px 20px; background: white; color: black; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div id="crosshair"></div>
+    <div id="coin-counter">🪙 <span id="coins-val">0</span></div>
+    <button id="exit-btn">🚪 ВЫХОД</button>
+
+    <div id="hud-container">
+        <div id="sperma-indicator">
+            <div class="egg-shell"><div id="egg-fill"></div></div>
+            <span id="egg-text">100%</span>
+        </div>
+        <div id="dick-control-panel">
+            <button class="dick-btn" id="dick-up">⬆ Вверх</button>
+            <button class="dick-btn" id="dick-down">⬇ Вниз</button>
+        </div>
+    </div>
+    
+    <div id="main-menu">
+        <div class="menu-content">
+            <div class="logo-container">
+                <span class="game-logo">🍆💦</span>
+                <h1 class="game-title">SPERMA SHUT</h1>
+            </div>
+            <input type="text" id="nickname-input" value="Игрок" placeholder="Ник">
+            <button id="play-btn" class="menu-btn">🚀 В БОЙ (ONLINE)</button>
+            <button id="shop-btn" class="menu-btn">🎁 Магазин Ящиков</button>
+            <button id="wardrobe-btn" class="menu-btn">👕 Гардероб</button>
+            <button id="settings-btn" class="menu-btn">⚙️ Настройки</button>
+        </div>
+    </div>
+
+    <div id="map-select-menu">
+        <div class="menu-content">
+            <h2>🌍 Сетевая катка</h2>
+            <label style="text-align: left; font-size: 0.9rem;">Выберите карту:</label>
+            <select id="map-select">
+                <option value="village">🏡 Село (Дороги, деревья и бабули)</option>
+                <option value="city">🌆 Город (С машинами)</option>
+            </select>
+            <label style="text-align: left; font-size: 0.9rem;">Время суток:</label>
+            <select id="time-select">
+                <option value="day">☀️ День</option>
+                <option value="night">🌙 Ночь (Неон)</option>
+            </select>
+            <button id="create-map-btn" class="menu-btn">🔥 ПОДКЛЮЧИТЬСЯ</button>
+            <button id="back-to-main" class="menu-btn" style="background:#444;">Назад</button>
+        </div>
+    </div>
+
+    <div id="shop-menu">
+        <div class="menu-content">
+            <h2>📦 Магазин Ящиков</h2>
+            <div id="box-result" style="font-size: 1.1rem; color: gold; min-height: 25px;"></div>
+            <button id="open-box-btn" class="menu-btn">Открыть ящик (50 🪙)</button>
+            <button id="close-shop" class="menu-btn" style="background:#ff2a2a;">Назад</button>
+        </div>
+    </div>
+
+    <div id="settings-menu">
+        <div class="sub-menu-content">
+            <h2>Настройки</h2>
+            <label style="display:flex; justify-content:space-between; align-items:center;">Вид от 1-го лица: <input type="checkbox" id="first-person-toggle" style="transform: scale(1.5);"></label>
+            <button id="close-settings" class="menu-btn" style="background:#ff2a2a;">Назад</button>
+        </div>
+    </div>
+
+    <div id="wardrobe-menu">
+        <div class="sub-menu-content">
+            <h2>Гардероб</h2>
+            <button class="skin-btn menu-btn" data-skin="default">Обычный парень</button>
+            <button class="skin-btn menu-btn" data-skin="black" style="background:#333;">🔥 Черный Гангста (MEGA DICK)</button>
+            <button id="close-wardrobe" class="menu-btn" style="background:#ff2a2a;">Назад</button>
+        </div>
+    </div>
+
+    <div id="game-ui">
+        <div id="joystick-zone"></div>
+        <div id="camera-zone"></div>
+        <div id="shoot-btn">КОНЧАТЬ</div>
+        <div id="anim-btn">АНИМАЦИИ</div>
+        <div id="anim-menu">
+            <button class="anim-option" data-anim="idle">Стоять</button>
+            <button class="anim-option" data-anim="wank">Дрочить</button>
+            <button class="anim-option" data-anim="fuck">🥵 ТРАХАТЬ</button>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
